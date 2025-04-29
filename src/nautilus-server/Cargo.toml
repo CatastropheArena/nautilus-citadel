@@ -33,3 +33,5 @@ prometheus = "0.13.4"
 
 # application specific
 regex = "1.5.4"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+crypto-hash = "0.3.4"
