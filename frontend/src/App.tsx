@@ -105,8 +105,8 @@ function App() {
       const { response, signature } = data;
       const { twitter_name, sui_address } = response.data;
 
-      console.log("twitter_name", twitter_name);
-      console.log("sui_address", sui_address);
+      console.log("twitter_name", String.fromCharCode(...twitter_name));
+      console.log("sui_address", toHex(sui_address));
       console.log("timestamp_ms", response.timestamp_ms);
       console.log("Signature before fromHEX:", signature);
 

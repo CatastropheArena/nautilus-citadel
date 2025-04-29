@@ -1,6 +1,6 @@
 # make
-PCR0=9a2908930a9e7a899f3d8184082d4329cbfcf4835a4778fce551076ac3f115b8fd151600b3c05cf78c5a15c04fea7e1b
-PCR1=9a2908930a9e7a899f3d8184082d4329cbfcf4835a4778fce551076ac3f115b8fd151600b3c05cf78c5a15c04fea7e1b
+PCR0=3fc152fc3e3e7c4783a969478fb147ceec64d54cb27c5a363b02be7a7e73a4011cb878d3cd16dde32b14f772ef3c729c
+PCR1=3fc152fc3e3e7c4783a969478fb147ceec64d54cb27c5a363b02be7a7e73a4011cb878d3cd16dde32b14f772ef3c729c
 PCR2=21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a
 
 # # optionally
@@ -28,7 +28,7 @@ ENCLAVE_CONFIG_OBJECT_ID=0xa2660be2a193646fae16c8e337d584342034d44a2288d53c99644
 EXAMPLES_PACKAGE_ID=0xac5e532633c4254435242a2e64a0e92e7f9c1331d142a6d2c02330a1a9042c23
 
 # record the deployed enclave url, e.g. http://<PUBLIC_IP>:3000
-ENCLAVE_URL=http://54.92.134.161:3000
+ENCLAVE_URL=http://13.217.113.41:3000
 
 # the module name and otw name used to create the dapp, defined in your Move code `fun init`
 MODULE_NAME=twitter
@@ -59,12 +59,12 @@ sui client call --function update_name --module enclave --package $ENCLAVE_PACKA
 # this script calls the get_attestation endpoint from your enclave url and use it to calls register_enclave onchain to register the public key, results in the created enclave object
 sh ../register_enclave.sh $ENCLAVE_PACKAGE_ID $EXAMPLES_PACKAGE_ID $ENCLAVE_CONFIG_OBJECT_ID $ENCLAVE_URL $MODULE_NAME $OTW_NAME
 
-# record the created shared object ENCLAVE_OBJECT_ID as env var from register output
-ENCLAVE_OBJECT_ID=0xeba18ee5924e82709fd03bad1298e38f879ede03954ed0db9ad88ec8628261c7
+# # record the created shared object ENCLAVE_OBJECT_ID as env var from register output
+ENCLAVE_OBJECT_ID=0x7bd92db51df9730c8887445d22109e3d200b0ba19bd92c461da77d0aad7b4e79
 
 
-sui client call --function mint_nft --module twitter \
---args "luo_eurax" 1745918301276 "0x005c14d78096010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab" 0xeba18ee5924e82709fd03bad1298e38f879ede03954ed0db9ad88ec8628261c7 \
---package $EXAMPLES_PACKAGE_ID \
---type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" \
---gas-budget 100000000
+# sui client call --function mint_nft --module twitter \
+# --args "luo_eurax" 1745918301276 "0x005c14d78096010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab" 0xeba18ee5924e82709fd03bad1298e38f879ede03954ed0db9ad88ec8628261c7 \
+# --package $EXAMPLES_PACKAGE_ID \
+# --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" \
+# --gas-budget 100000000

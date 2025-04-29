@@ -5,8 +5,8 @@
 
 module enclave::enclave;
 
+use std::string::{Self, String};
 use std::bcs;
-use std::string::String;
 use sui::ed25519;
 use sui::nitro_attestation::NitroAttestationDocument;
 
@@ -115,6 +115,10 @@ public fun verify_signature<T, P: drop>(
 ): bool {
     let intent_message = create_intent_message(intent_scope, timestamp_ms, payload);
     let payload = bcs::to_bytes(&intent_message);
+    std::debug::print(&string::utf8(b"payload"));
+    std::debug::print(&payload);
+    std::debug::print(&string::utf8(b"enclave.pk"));
+    std::debug::print(&enclave.pk);
     return ed25519::ed25519_verify(signature, &enclave.pk, &payload)
 }
 
@@ -179,7 +183,7 @@ public struct SigningPayload has copy, drop {
 fun test_serde() {
     // serialization should be consistent with rust test see `fn test_serde` in `src/nautilus-server/app.rs`.
     let scope = 0;
-    let timestamp = 1745918301276;
+    let timestamp = 1745937093978;
     let signing_payload = create_intent_message(
         scope,
         timestamp,
@@ -190,5 +194,5 @@ fun test_serde() {
     );
     let bytes = bcs::to_bytes(&signing_payload);
     std::debug::print(&bytes);
-    assert!(bytes == x"005c14d78096010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab", 0);
+    assert!(bytes == x"005ad5f58196010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab", 0);
 }
