@@ -209,20 +209,20 @@ if [[ "$USE_SECRET" =~ ^[Yy]$ ]]; then
           --query 'ARN' --output text)
         echo "Secret created with ARN: $SECRET_ARN"
 
-      # 如果创建失败（比如已存在），自动查找 ARN
-      if [ -z "$SECRET_ARN" ]; then
-        echo "Secret 创建失败，尝试查找已存在的 Secret ARN..."
-        SECRET_ARN=$(aws secretsmanager list-secrets --region "$REGION" \
-          --query "SecretList[?Name=='$USER_SECRET_NAME'].ARN | [0]" --output text)
+        # 如果创建失败（比如已存在），自动查找 ARN
         if [ -z "$SECRET_ARN" ]; then
-          echo "未能自动找到 Secret ARN，请手动输入："
-          read -p "Secret ARN: " SECRET_ARN
+          echo "Secret 创建失败，尝试查找已存在的 Secret ARN..."
+          SECRET_ARN=$(aws secretsmanager list-secrets --region "$REGION" \
+            --query "SecretList[?Name=='$USER_SECRET_NAME'].ARN | [0]" --output text)
+          if [ -z "$SECRET_ARN" ]; then
+            echo "未能自动找到 Secret ARN，请手动输入："
+            read -p "Secret ARN: " SECRET_ARN
+          else
+            echo "已自动获取 Secret ARN: $SECRET_ARN"
+          fi
         else
-          echo "已自动获取 Secret ARN: $SECRET_ARN"
+          echo "Secret 创建成功，ARN: $SECRET_ARN"
         fi
-      else
-        echo "Secret 创建成功，ARN: $SECRET_ARN"
-      fi
 
         # Create IAM Role, Policy, and Instance Profile for Secret Access
         ROLE_NAME="role-${FINAL_INSTANCE_NAME}"
