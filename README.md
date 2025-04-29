@@ -27,11 +27,11 @@ Associating IAM instance profile role-my-enclave-810080 with instance i-019a9785
 [*] Run expose_enclave.sh from within the EC2 instance to expose the enclave to the internet.
 ```
 5. ssh 测试
-ssh -i ~/.ssh/aws-ec2-tee-keypair.pem ec2-user@"98.81.188.33"
+ssh -i ~/.ssh/aws-ec2-tee-keypair.pem ec2-user@"13.217.113.41"
 
 
 6. 复制 nautilus-citadel 到ec2实例
-rsync -av --exclude-from=.scpignore -e "ssh -i ~/.ssh/aws-ec2-tee-keypair.pem" ../nautilus-citadel/ ec2-user@98.81.188.33:~/nautilus-citadel/
+rsync -av --exclude-from=.scpignore -e "ssh -i ~/.ssh/aws-ec2-tee-keypair.pem" ../nautilus-citadel/ ec2-user@13.217.113.41:~/nautilus-citadel/
 
 7. 运行 nautilus-citadel
 cd nautilus-citadel
