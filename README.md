@@ -27,11 +27,11 @@ Associating IAM instance profile role-my-enclave-810080 with instance i-019a9785
 [*] Run expose_enclave.sh from within the EC2 instance to expose the enclave to the internet.
 ```
 5. ssh 测试
-ssh -i ~/.ssh/aws-ec2-tee-keypair.pem ec2-user@"18.234.117.249"
+ssh -i ~/.ssh/aws-ec2-tee-keypair.pem ec2-user@"98.81.188.33"
 
 
 6. 复制 nautilus-citadel 到ec2实例
-rsync -av --exclude-from=.scpignore -e "ssh -i ~/.ssh/aws-ec2-tee-keypair.pem" ../nautilus-citadel/ ec2-user@18.234.117.249:~/nautilus-citadel/
+rsync -av --exclude-from=.scpignore -e "ssh -i ~/.ssh/aws-ec2-tee-keypair.pem" ../nautilus-citadel/ ec2-user@98.81.188.33:~/nautilus-citadel/
 
 7. 运行 nautilus-citadel
 cd nautilus-citadel
@@ -43,4 +43,4 @@ sh expose_enclave.sh # this exposes port 3000 to the Internet for traffic
 aws ec2 describe-instances --region us-east-1 --query "Reservations[*].Instances[*].[InstanceId,State.Name,Tags]" 
 
 
-aws ec2 terminate-instances --instance-ids i-0381e7e1ef099df4a --region us-east-1
+aws ec2 terminate-instances --instance-ids i-046162df96ee65977 --region us-east-1

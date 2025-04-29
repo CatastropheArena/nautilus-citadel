@@ -179,15 +179,16 @@ public struct SigningPayload has copy, drop {
 fun test_serde() {
     // serialization should be consistent with rust test see `fn test_serde` in `src/nautilus-server/app.rs`.
     let scope = 0;
-    let timestamp = 1743989326143;
+    let timestamp = 1745918301276;
     let signing_payload = create_intent_message(
         scope,
         timestamp,
         SigningPayload {
-            twitter_name: b"mystenintern",
-            sui_address: x"101ce8865558e08408b83f60ee9e78843d03d547c850cbe12cb599e17833dd3e",
+            twitter_name: b"luo_eurax",
+            sui_address: x"540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab",
         },
     );
     let bytes = bcs::to_bytes(&signing_payload);
-    assert!(bytes == x"003f41dd0d960100000c6d797374656e696e7465726e20101ce8865558e08408b83f60ee9e78843d03d547c850cbe12cb599e17833dd3e", 0);
+    std::debug::print(&bytes);
+    assert!(bytes == x"005c14d78096010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab", 0);
 }

@@ -14,7 +14,8 @@ out/enclaveos.tar: out ensure-git \
 	$(shell git ls-files \
 		src/init \
 		src/aws \
-        src/hello \
+		src/nautilus-server \
+		src/system \
 	)
 	docker build \
 		--tag $(REGISTRY)/enclaveos \
