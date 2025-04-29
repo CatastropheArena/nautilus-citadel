@@ -1,57 +1,46 @@
-# Nautilus: Verifiable offchain computation on Sui
+1. 创建 aws账户
 
-Nautilus is a framework for **secure and verifiable off-chain computation on Sui**. It allows developers to delegate sensitive or resource-intensive tasks to a self-managed [Trusted Execution Environment (TEE)](https://en.wikipedia.org/wiki/Trusted_execution_environment) while preserving trust on-chain through smart contract-based verification.
+2. 配置本地aws cli 
+创建 IAM,配置权限
+aws configure 
 
-Nautilus is designed for hybrid decentralized applications (Dapps) that require private data handling, complex computation, or integration with external (Web2) systems. It ensures that off-chain computations are tamper-resistant, isolated, and cryptographically verifiable. 
+3. 创建key pair
+aws ec2 create-key-pair --key-name "nautilus-citadel" --region us-east-1
 
-The initial release supports **self-managed** [AWS Nitro Enclave TEEs](https://aws.amazon.com/ec2/nitro/nitro-enclaves/). Developers can verify AWS-signed enclave attestations on-chain using Sui smart contracts written in Move.
+4. 设置.env
+运行sh configure_enclave.sh
 
-> [!IMPORTANT]
-> Nautilus is available in beta with Sui Testnet. The Mainnet release is yet to be scheduled.
 
-## Features
+```sh
+Using existing security group instance-script-sg (sg-021553cccbb582d55)
+Launching EC2 instance with Nitro Enclaves enabled...
+Instance launched with ID: i-019a9785d246f35a3
+Waiting for instance i-019a9785d246f35a3 to run...
+Associating IAM instance profile role-my-enclave-810080 with instance i-019a9785d246f35a3
+[*] Commit the code generated in expose_enclave.sh and src/nautilus-server/run.sh. They will be needed when building the enclave inside the instance.
+[*] 您正在使用现有实例 i-019a9785d246f35a3
+[*] 请确保该实例已正确配置Nitro Enclaves环境
+[*] 实例公共IP: 18.232.101.175
+[*] ssh连接示例: ssh ec2-user@"18.232.101.175"
+[*] Clone or copy the repo with the above generated code.
+[*] Inside repo directory: 'make' and then 'make run'
+[*] Run expose_enclave.sh from within the EC2 instance to expose the enclave to the internet.
+```
+5. ssh 测试
+ssh -i ~/.ssh/aws-ec2-tee-keypair.pem ec2-user@"18.234.117.249"
 
-A Nautilus application consists of two components:
 
-- Offchain server: Runs inside a TEE, like AWS Nitro Enclaves, and performs the actual computation, such as processing user input or executing a scheduled task.
-- Onchain smart contract: Written in Move, this contract receives the output and verifies the TEE's attestation before trusting or acting on the data.
+6. 复制 nautilus-citadel 到ec2实例
+rsync -av --exclude-from=.scpignore -e "ssh -i ~/.ssh/aws-ec2-tee-keypair.pem" ../nautilus-citadel/ ec2-user@18.234.117.249:~/nautilus-citadel/
 
-> Note: We chose to initially support AWS Nitro Enclaves because of its maturity and reproducibility. We will consider adding more TEE providers in the future.
+7. 运行 nautilus-citadel
+cd nautilus-citadel
+make && make run # this builds the enclave and run it
+sh expose_enclave.sh # this exposes port 3000 to the Internet for traffic
 
-**How it works**
 
-- Deploy the offchain server to a self-managed TEE, such as AWS Nitro Enclaves. You may or may not use the reproducible build template available in this repo.
-- The TEE generates a cryptographic attestation that proves the integrity of the execution environment.
-- Sui smart contracts verify the attestation onchain before accepting the TEE output.
-- The integrity of the TEE is auditable and anchored by the provider’s root of trust.
+8. 删除实例
+aws ec2 describe-instances --region us-east-1 --query "Reservations[*].Instances[*].[InstanceId,State.Name,Tags]" 
 
-> [!IMPORTANT]
-> The provided reproducible build template is intended as a starting point for building your own enclave. It is not feature-complete, has not undergone a security audit, and is offered as a modification-friendly reference licensed under the Apache 2.0 license. THE TEMPLATE AND ITS RELATED DOCUMENTATION ARE PROVIDED `AS IS` WITHOUT WARRANTY OF ANY KIND FOR EVALUATION PURPOSES ONLY.
-> We encourage you to adapt and extend it to fit your specific use case.
 
-## Use cases
-
-Several Web3 use cases can use Nautilus for trustworthy and verifiable offchain computation. Examples include:
-
-- **Trusted Oracles**: Nautilus could ensure that oracles fetch and process offchain data in a tamper-resistant manner before providing results to a smart contract. The source of external data could be a Web2 service (like weather, sports, betting, asset prices, etc.) or a decentralized storage platform like [Walrus](https://walrus.xyz).
-- **AI agents**: Nautilus would be ideal to securely run AI models for inference or execute agentic workflows to produce actionable outcomes, while providing data & model provenance onchain.
-- **DePIN solutions**: DePIN (Decentralized Physical Infrastructure) could leverage Nautilus for private data computation in IoT and supply chain networks.
-- **Fraud prevention in multi-party systems**: Decentralized exchanges (DEXs) could use Nautilus for order matching and settlement, or layer-2 solutions could prevent collision & fraud by securely running computations between untrusted parties.
-- **Identity management**: Solutions in the identity management space that require onchain verifiability for decentralized governance and proof of tamper-resistance, could utilize Nautilus.
-- and more…
-
-When used together, Nautilus and [Seal](https://github.com/MystenLabs/seal) enable powerful privacy-preserving use cases by combining secure & verifiable computation with secure key access. A common challenge with TEEs is persisting secret keys across restarts and different machines. Seal can address this by securely storing long-term keys and granting access only to properly attested TEEs. In this model, Nautilus handles computation over the encrypted data, while Seal controls key access. Applications that require a shared encrypted state can use both tools to privately process user requests and update encrypted data on public networks.
-
-## Future plans and non-goals
-
-We plan to expand Nautilus support to additional TEE providers in the future, such as [Intel TDX](https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/overview.html) and [AMD SEV](https://www.amd.com/en/developer/sev.html). We welcome feedback from the builder community on which platforms to prioritize, or suggestions for others to consider.
-
-Currently, Nautilus does not aim to provide a readily usable TEE network. Developers are encouraged to deploy and manage their own TEEs for running off-chain Nautilus servers.
-
-## Contact Us
-For questions about Nautilus, use case discussions, or integration support, contact the Nautilus team on [Sui Discord](https://discord.com/channels/916379725201563759/1361500579603546223).
-
-## More information 
-- [Nautilus Design](Design.md)
-- [Using Nautilus](UsingNautilus.md)
-- [LICENSE](LICENSE)
+aws ec2 terminate-instances --instance-ids i-0381e7e1ef099df4a --region us-east-1

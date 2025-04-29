@@ -171,25 +171,23 @@ public fun destroy_enclave<T>(e: Enclave<T>) {
 
 #[test_only]
 public struct SigningPayload has copy, drop {
-    location: String,
-    temperature: u64,
+    twitter_name: vector<u8>,
+    sui_address: vector<u8>,
 }
 
 #[test]
 fun test_serde() {
     // serialization should be consistent with rust test see `fn test_serde` in `src/nautilus-server/app.rs`.
-    use std::string;
-
     let scope = 0;
-    let timestamp = 1744038900000;
+    let timestamp = 1743989326143;
     let signing_payload = create_intent_message(
         scope,
         timestamp,
         SigningPayload {
-            location: string::utf8(b"San Francisco"),
-            temperature: 13,
+            twitter_name: b"mystenintern",
+            sui_address: x"101ce8865558e08408b83f60ee9e78843d03d547c850cbe12cb599e17833dd3e",
         },
     );
     let bytes = bcs::to_bytes(&signing_payload);
-    assert!(bytes == x"0020b1d110960100000d53616e204672616e636973636f0d00000000000000", 0);
+    assert!(bytes == x"003f41dd0d960100000c6d797374656e696e7465726e20101ce8865558e08408b83f60ee9e78843d03d547c850cbe12cb599e17833dd3e", 0);
 }

@@ -141,7 +141,6 @@ You can test most functionality by running the server locally. However, the `get
 To test the `process_data` endpoint locally, run the following:
 
 ```shell
-cd src/nautilus-server/
 RUST_LOG=debug API_KEY=045a27812dbe456392913223221306 cargo run
 
 curl -H 'Content-Type: application/json' -d '{"payload": { "location": "San Francisco"}}' -X POST http://localhost:3000/process_data
@@ -174,20 +173,20 @@ Then repeat step 6.
 ## Build locally to check reproducibility
 
 Every enclave built from the same source code (everything in `/src`) can produce identical PCRs through reproducible builds.
-Note that this includes any traffic forwarding changes made in `run.sh` (see branch `example-configuration`).
+Note that this includes any traffic forwarding changes made in `run.sh`.
 
 ```shell
 cd nautilus/
 make
 
 cat out/nitro.pcrs
-cbe1afb6ed0ff89f10295af0b802247ec5670da8f886e71a4226373b032c322f4e42c9c98288e7211682b258684505a2 PCR0
-cbe1afb6ed0ff89f10295af0b802247ec5670da8f886e71a4226373b032c322f4e42c9c98288e7211682b258684505a2 PCR1
+cc442d94ba48f3919d58b7f04c478912a191ef470e98519d10e6db79023e7b654a5fad24b2d85898d0e5921782f5663d PCR0
+cc442d94ba48f3919d58b7f04c478912a191ef470e98519d10e6db79023e7b654a5fad24b2d85898d0e5921782f5663d PCR1
 21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a PCR2
 
 # Add env var that will be used later when registering the enclave.
-PCR0=cbe1afb6ed0ff89f10295af0b802247ec5670da8f886e71a4226373b032c322f4e42c9c98288e7211682b258684505a2
-PCR1=cbe1afb6ed0ff89f10295af0b802247ec5670da8f886e71a4226373b032c322f4e42c9c98288e7211682b258684505a2
+PCR0=cc442d94ba48f3919d58b7f04c478912a191ef470e98519d10e6db79023e7b654a5fad24b2d85898d0e5921782f5663d
+PCR1=cc442d94ba48f3919d58b7f04c478912a191ef470e98519d10e6db79023e7b654a5fad24b2d85898d0e5921782f5663d
 PCR2=21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a
 ```
 
@@ -247,16 +246,16 @@ echo $ENCLAVE_URL
 sui client call --function update_pcrs --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID 0x$PCR0 0x$PCR1 0x$PCR2
 
 # optional, give it a name you like
-sui client call --function update_name --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID "weather enclave, updated 2025-04-14"
+sui client call --function update_name --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID "weather enclave, updated 2025-04-10"
 
 # this script calls the get_attestation endpoint from your enclave url and use it to calls register_enclave onchain to register the public key, results in the created enclave object
 sh ../../register_enclave.sh $ENCLAVE_PACKAGE_ID $EXAMPLES_PACKAGE_ID $ENCLAVE_CONFIG_OBJECT_ID $ENCLAVE_URL $MODULE_NAME $OTW_NAME
 
 # record the created shared object ENCLAVE_OBJECT_ID as env var from register output
-ENCLAVE_OBJECT_ID=0x7bb826b2944eec37c9f2d8fe2514dea0f3fcdce9147c57bff1690399e787cf93
+ENCLAVE_OBJECT_ID=0xfa9bce59c4df083b50a06d02977eb3fbee9f8fbde3ff1c866b2664fbd3315b06
 ```
 
-You can view an example of an enclave config object containing PCRs [here](https://testnet.suivision.xyz/object/0x49f658245333f5836c5c9c8b835dee4923794b298afaed923dd2bba6d937a222). Also you can view an example of an enclave object containing the enclave public key [here](https://testnet.suivision.xyz/object/0x7bb826b2944eec37c9f2d8fe2514dea0f3fcdce9147c57bff1690399e787cf93).
+You can view an example of an enclave config object containing PCRs [here](https://testnet.suivision.xyz/object/0x49f658245333f5836c5c9c8b835dee4923794b298afaed923dd2bba6d937a222). Also you can view an example of an enclave object containing the enclave public key [here](https://testnet.suivision.xyz/object/0xfa9bce59c4df083b50a06d02977eb3fbee9f8fbde3ff1c866b2664fbd3315b06).
 
 ### Update PCRs
 
@@ -267,10 +266,9 @@ The deployer of the smart contract holds the `EnclaveCap`, which allows for upda
 You can now write your frontend code to interact with the enclave for computation, and then send the resulting data to the Move contract for use. For the weather example, you can request the enclave to retrieve weather data for a specific location:
 
 ```shell
-curl -H 'Content-Type: application/json' -d '{"payload": { "location": "San Francisco"}}' -X POST http://54.211.86.19:3000/process_data
+curl -H 'Content-Type: application/json' -d '{"payload": { "location": "San Francisco"}}' -X POST http://<PUBLIC_IP>:3000/process_data
 
-
-{"response":{"intent":0,"timestamp_ms":1744683300000,"data":{"location":"San Francisco","temperature":13}},"signature":"77b6d8be225440d00f3d6eb52e91076a8927cebfb520e58c19daf31ecf06b3798ec3d3ce9630a9eceee46d24f057794a60dd781657cb06d952269cfc5ae19500"}
+{"response":{"intent":0,"timestamp_ms":1744301700000,"data":{"location":"San Francisco","temperature":12}},"signature":"21e6d4cb3b351f04b8e3fb4d8671e040c8a2f792267c105ad6b69aab268d8a5ac81e494496c85d95d707f4287c2d600f87bdeeadc756a0f61d5ffda17000db0a"}
 ```
 
 Then use the values from the enclave response - signature, timestamp, location, and temperature - to call `update_weather` in the Move contract. In this example, the call is demonstrated using a script, but it should be integrated into your Dapp frontend.
@@ -281,13 +279,13 @@ sh ../../update_weather.sh \
     $MODULE_NAME \
     $OTW_NAME \
     $ENCLAVE_OBJECT_ID \
-    "77b6d8be225440d00f3d6eb52e91076a8927cebfb520e58c19daf31ecf06b3798ec3d3ce9630a9eceee46d24f057794a60dd781657cb06d952269cfc5ae19500" \
-    1744683300000 \
+    "21e6d4cb3b351f04b8e3fb4d8671e040c8a2f792267c105ad6b69aab268d8a5ac81e494496c85d95d707f4287c2d600f87bdeeadc756a0f61d5ffda17000db0a" \
+    1744301700000 \
     "San Francisco" \
-    13
+    12
 ```
 
-An example of a created weather NFT can be viewed [here](https://testnet.suivision.xyz/object/0xa78e166630c0ed004b3115b474fed15d71f27fc80b68e37d451494c6e815931e).
+An example of a created weather NFT can be viewed [here](https://testnet.suivision.xyz/object/0xce7ecebbfa25419942c2c0f256f206a798feab7d3d2e80c09df80aa578613329).
 
 ### Signing payload
 

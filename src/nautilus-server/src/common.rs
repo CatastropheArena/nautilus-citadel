@@ -37,7 +37,7 @@ pub struct IntentMessage<T: Serialize> {
 #[derive(Serialize_repr, Deserialize_repr, Debug)]
 #[repr(u8)]
 pub enum IntentScope {
-    Weather = 0,
+    Tweet = 0,
 }
 
 impl<T: Serialize + Debug> IntentMessage<T> {
@@ -99,7 +99,7 @@ pub async fn get_attestation(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<GetAttestationResponse>, EnclaveError> {
     info!("get attestation called");
-
+    state.metrics.get_attestation_requests.inc();
     let pk = state.eph_kp.public();
     let fd = driver::nsm_init();
 
@@ -141,6 +141,7 @@ pub struct HealthCheckResponse {
 pub async fn health_check(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<HealthCheckResponse>, EnclaveError> {
+    info!("Health check called");
     let pk = state.eph_kp.public();
 
     // Create HTTP client with timeout

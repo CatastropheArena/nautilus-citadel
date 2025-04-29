@@ -2,6 +2,8 @@
 user-data.sh
 trust-policy.json
 secrets-policy.json
+secrets.json
+config.alloy
 
 /move/enclave/build
 /move/app/build
@@ -10,3 +12,6 @@ secrets-policy.json
 
 /out
 /target
+
+/frontend/node_modules
+/frontend/dist

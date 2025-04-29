@@ -3,6 +3,20 @@
 #!/bin/bash
 # configure_enclave.sh
 
+# 加载.env文件函数
+load_env_file() {
+  ENV_FILE=".env"
+  if [ -f "$ENV_FILE" ]; then
+    echo "正在加载 .env 文件..."
+    set -a  # 自动标记读取的变量为export
+    source "$ENV_FILE"
+    set +a
+    echo ".env 文件加载完成"
+  else
+    echo "没有找到 .env 文件，继续使用默认设置或环境变量"
+  fi
+}
+
 # Additional information on this script. 
 show_help() {
     echo "configure_enclave.sh - Launch AWS EC2 instance with Nitro Enclaves and configure allowed endpoints. "
@@ -24,10 +38,28 @@ show_help() {
     echo "  # optional: export REGION=<your-region>  (defaults to us-east-1)"
     echo "  # optional: export AMI_ID=<your-ami-id>  (defaults to ami-085ad6ae776d8f09c)"
     echo "  # optional: export API_ENV_VAR_NAME=<env-var-name> (defaults to 'API_KEY')"
+    echo "  # optional: export INSTANCE_TYPE=<your-instance-type> (defaults to 'm5.xlarge')"
+    echo "  # optional: export VPC_ID=<your-vpc-id>  (if not set, uses default VPC or creates a new one)"
+    echo "  # optional: create a .env file with the above variables"
     echo "  ./configure_enclave.sh"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help message"
+    echo ""
+    echo ".env 文件说明:"
+    echo "  您可以创建一个 .env 文件来设置环境变量，而不是每次都手动导出。"
+    echo "  如果存在 .env 文件，脚本会自动加载其中的变量。"
+    echo "  运行脚本后，将自动创建一个 .env.example 文件作为参考。"
+    echo "  您可以将其复制为 .env 并根据需要修改变量值。"
+    echo "  支持的变量包括: KEY_PAIR, REGION, AMI_ID, API_ENV_VAR_NAME, EC2_INSTANCE_NAME,"
+    echo "  INSTANCE_TYPE, VPC_ID, USE_SECRET, SECRET_CHOICE, USER_SECRET_NAME, SECRET_VALUE 等。"
+    echo ""
+    echo "VPC 设置说明:"
+    echo "  脚本会自动处理VPC和子网设置:"
+    echo "  - 如果指定了VPC_ID，将使用指定的VPC"
+    echo "  - 如果未指定VPC_ID，将使用默认VPC"
+    echo "  - 如果没有默认VPC，将创建一个新的VPC和子网"
+    echo "  - 所有新创建的子网都将是公共子网，允许访问互联网"
 }
 
 # Check for help flag
@@ -35,6 +67,9 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     show_help
     exit 0
 fi
+
+# 加载.env文件
+load_env_file
 
 ############################
 # Configurable Defaults
@@ -45,6 +80,9 @@ export AWS_DEFAULT_REGION="$REGION"
 
 # The default AMI for us-east-1. Change this if your region is different.
 AMI_ID="${AMI_ID:-ami-085ad6ae776d8f09c}"
+
+# 默认实例类型设置为m5.xlarge，但可以通过环境变量覆盖
+INSTANCE_TYPE="${INSTANCE_TYPE:-m5.xlarge}"
 
 # Environment variable name for our secret; default is 'API_KEY'
 API_ENV_VAR_NAME="${API_ENV_VAR_NAME:-API_KEY}"
@@ -78,6 +116,8 @@ fi
 ############################
 if [ -z "$EC2_INSTANCE_NAME" ]; then
     read -p "Enter EC2 instance base name: " EC2_INSTANCE_NAME
+else
+    echo "使用预设的 EC2_INSTANCE_NAME 值: $EC2_INSTANCE_NAME"
 fi
 
 if command -v shuf >/dev/null 2>&1; then
@@ -118,7 +158,11 @@ fi
 #########################################
 # Decide about secrets (3 scenarios)
 #########################################
-read -p "Do you want to use a secret? (y/n): " USE_SECRET
+if [ -z "$USE_SECRET" ]; then
+    read -p "Do you want to use a secret? (y/n): " USE_SECRET
+else
+    echo "使用预设的 USE_SECRET 值: $USE_SECRET"
+fi
 
 # Validate input
 if [[ ! "$USE_SECRET" =~ ^[YyNn]$ ]]; then
@@ -127,7 +171,11 @@ if [[ ! "$USE_SECRET" =~ ^[YyNn]$ ]]; then
 fi
 
 if [[ "$USE_SECRET" =~ ^[Yy]$ ]]; then
-    read -p "Do you want to create a new secret or use an existing secret ARN? (new/existing): " SECRET_CHOICE
+    if [ -z "$SECRET_CHOICE" ]; then
+        read -p "Do you want to create a new secret or use an existing secret ARN? (new/existing): " SECRET_CHOICE
+    else
+        echo "使用预设的 SECRET_CHOICE 值: $SECRET_CHOICE"
+    fi
 
     # Validate input
     if [[ ! "$SECRET_CHOICE" =~ ^([Nn]ew|NEW|[Ee]xisting|EXISTING)$ ]]; then
@@ -139,9 +187,19 @@ if [[ "$USE_SECRET" =~ ^[Yy]$ ]]; then
         #----------------------------------------------------
         # Create a new secret
         #----------------------------------------------------
-        read -p "Enter secret name: " USER_SECRET_NAME
-        read -s -p "Enter secret value: " SECRET_VALUE
-        echo ""
+        if [ -z "$USER_SECRET_NAME" ]; then
+            read -p "Enter secret name: " USER_SECRET_NAME
+        else
+            echo "使用预设的 USER_SECRET_NAME 值: $USER_SECRET_NAME"
+        fi
+        
+        if [ -z "$SECRET_VALUE" ]; then
+            read -s -p "Enter secret value: " SECRET_VALUE
+            echo ""
+        else
+            echo "使用预设的 SECRET_VALUE (值已隐藏)"
+        fi
+        
         SECRET_NAME="${USER_SECRET_NAME}"
         echo "Creating secret '$SECRET_NAME' in AWS Secrets Manager..."
         SECRET_ARN=$(aws secretsmanager create-secret \
@@ -150,6 +208,21 @@ if [[ "$USE_SECRET" =~ ^[Yy]$ ]]; then
           --region "$REGION" \
           --query 'ARN' --output text)
         echo "Secret created with ARN: $SECRET_ARN"
+
+      # 如果创建失败（比如已存在），自动查找 ARN
+      if [ -z "$SECRET_ARN" ]; then
+        echo "Secret 创建失败，尝试查找已存在的 Secret ARN..."
+        SECRET_ARN=$(aws secretsmanager list-secrets --region "$REGION" \
+          --query "SecretList[?Name=='$USER_SECRET_NAME'].ARN | [0]" --output text)
+        if [ -z "$SECRET_ARN" ]; then
+          echo "未能自动找到 Secret ARN，请手动输入："
+          read -p "Secret ARN: " SECRET_ARN
+        else
+          echo "已自动获取 Secret ARN: $SECRET_ARN"
+        fi
+      else
+        echo "Secret 创建成功，ARN: $SECRET_ARN"
+      fi
 
         # Create IAM Role, Policy, and Instance Profile for Secret Access
         ROLE_NAME="role-${FINAL_INSTANCE_NAME}"
@@ -228,7 +301,11 @@ echo \"\$SECRET_VALUE\" | jq -R '{\"${API_ENV_VAR_NAME}\": .}' > secrets.json" e
         #----------------------------------------------------
         # Use an existing secret ARN
         #----------------------------------------------------
-        read -p "Enter the existing secret ARN: " SECRET_ARN
+        if [ -z "$SECRET_ARN" ]; then
+            read -p "Enter the existing secret ARN: " SECRET_ARN
+        else
+            echo "使用预设的 SECRET_ARN 值: $SECRET_ARN"
+        fi
 
         # Validate that the secret exists and has a value
         echo "Validating secret ARN..."
@@ -408,6 +485,27 @@ if [ -n "$ENDPOINTS" ]; then
     done
 fi
 
+# Append Grafana Alloy installation 
+cat <<EOF >> user-data.sh
+
+wget -q -O gpg.key https://rpm.grafana.com/gpg.key
+sudo rpm --import gpg.key
+echo -e '[grafana]\nname=grafana\nbaseurl=https://rpm.grafana.com\nrepo_gpgcheck=1\nenabled=1\ngpgcheck=1\ngpgkey=https://rpm.grafana.com/gpg.key\nsslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt' | sudo tee /etc/yum.repos.d/grafana.repo
+dnf update
+sudo dnf install alloy -y
+sudo dnf upgrade --releasever=2023.5.20240819 #(This upgrades latest ca-certifcates/nitro-cli dependencies)
+
+# Install Grafana Agent config
+sudo mkdir -p /etc/alloy
+
+# Start Grafana Agent
+sudo systemctl reload alloy
+sudo systemctl start alloy
+
+EOF
+
+
 ###################################################################
 # Fix src/nautilus-server/run.sh to add endpoint + forwarders
 ###################################################################
@@ -484,29 +582,91 @@ rm "$tmp_traffic"
 echo "updated run.sh"
 
 ############################
+# 设置VPC和子网
+############################
+setup_vpc_subnet() {
+  # 如果提供了VPC_ID，检查它是否存在
+  if [ -n "$VPC_ID" ]; then
+    echo "检查指定的VPC: $VPC_ID 是否存在..."
+    VPC_CHECK=$(aws ec2 describe-vpcs --vpc-ids "$VPC_ID" --region "$REGION" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "错误: 指定的VPC不存在或无法访问。"
+      echo "AWS CLI错误:"
+      echo "$VPC_CHECK"
+      exit 1
+    fi
+    echo "使用指定的VPC: $VPC_ID"
+  else
+    # 如果没有指定VPC_ID，检查是否有默认VPC
+    echo "检查默认VPC..."
+    DEFAULT_VPC=$(aws ec2 describe-vpcs --filter "Name=isDefault,Values=true" --region "$REGION" --query "Vpcs[0].VpcId" --output text)
+    if [ "$DEFAULT_VPC" != "None" ] && [ -n "$DEFAULT_VPC" ]; then
+      VPC_ID=$DEFAULT_VPC
+      echo "使用默认VPC: $VPC_ID"
+    else
+      # 如果没有默认VPC，创建一个新的
+      echo "没有找到默认VPC，创建新VPC..."
+      VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --region "$REGION" --query "Vpc.VpcId" --output text)
+      echo "新建VPC: $VPC_ID"
+      
+      # 等待VPC创建完成
+      aws ec2 wait vpc-available --vpc-ids "$VPC_ID" --region "$REGION"
+      
+      # 为新VPC创建互联网网关
+      IGW_ID=$(aws ec2 create-internet-gateway --region "$REGION" --query "InternetGateway.InternetGatewayId" --output text)
+      aws ec2 attach-internet-gateway --vpc-id "$VPC_ID" --internet-gateway-id "$IGW_ID" --region "$REGION"
+      echo "互联网网关 $IGW_ID 已附加到VPC"
+    fi
+  fi
+  
+  # 查找或创建子网
+  echo "查找公共子网..."
+  SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --region "$REGION" --query "Subnets[0].SubnetId" --output text)
+  
+  if [ "$SUBNET_ID" = "None" ] || [ -z "$SUBNET_ID" ]; then
+    # 获取第一个可用区
+    AZ=$(aws ec2 describe-availability-zones --region "$REGION" --query "AvailabilityZones[0].ZoneName" --output text)
+    echo "没有找到子网，在可用区 $AZ 创建新子网..."
+    
+    SUBNET_ID=$(aws ec2 create-subnet --vpc-id "$VPC_ID" --cidr-block 10.0.1.0/24 --availability-zone "$AZ" --region "$REGION" --query "Subnet.SubnetId" --output text)
+    echo "新建子网: $SUBNET_ID"
+    
+    # 将子网设置为公共子网(自动分配公共IP)
+    aws ec2 modify-subnet-attribute --subnet-id "$SUBNET_ID" --map-public-ip-on-launch --region "$REGION"
+    
+    # 创建并设置路由表
+    ROUTE_TABLE_ID=$(aws ec2 create-route-table --vpc-id "$VPC_ID" --region "$REGION" --query "RouteTable.RouteTableId" --output text)
+    aws ec2 create-route --route-table-id "$ROUTE_TABLE_ID" --destination-cidr-block 0.0.0.0/0 --gateway-id "$IGW_ID" --region "$REGION"
+    aws ec2 associate-route-table --subnet-id "$SUBNET_ID" --route-table-id "$ROUTE_TABLE_ID" --region "$REGION"
+    echo "路由表已设置，允许互联网访问"
+  else
+    echo "使用现有子网: $SUBNET_ID"
+  fi
+}
+
+# 调用VPC设置函数
+setup_vpc_subnet
+
+############################
 # Create or Use Security Group
 ############################
 SECURITY_GROUP_NAME="instance-script-sg"
 
+# 尝试通过名称查找安全组
 SECURITY_GROUP_ID=$(aws ec2 describe-security-groups \
   --region "$REGION" \
-  --group-names "$SECURITY_GROUP_NAME" \
+  --filters "Name=group-name,Values=$SECURITY_GROUP_NAME" "Name=vpc-id,Values=$VPC_ID" \
   --query "SecurityGroups[0].GroupId" \
   --output text 2>/dev/null)
 
 if [ "$SECURITY_GROUP_ID" = "None" ] || [ -z "$SECURITY_GROUP_ID" ]; then
-  echo "Creating security group $SECURITY_GROUP_NAME..."
+  echo "Creating security group $SECURITY_GROUP_NAME in VPC $VPC_ID..."
   SECURITY_GROUP_ID=$(aws ec2 create-security-group \
     --region "$REGION" \
     --group-name "$SECURITY_GROUP_NAME" \
+    --vpc-id "$VPC_ID" \
     --description "Security group allowing SSH (22), HTTPS (443), and port 3000" \
     --query "GroupId" --output text)
-
-  # Ensure that the security group is created successfully
-  if [ $? -ne 0 ]; then
-    echo "Error creating security group."
-    exit 1
-  fi
 
   aws ec2 authorize-security-group-ingress --region "$REGION" \
     --group-id "$SECURITY_GROUP_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0
@@ -521,26 +681,89 @@ else
 fi
 
 ############################
-# Launch EC2
+# Launch EC2 或使用现有实例
 ############################
-echo "Launching EC2 instance with Nitro Enclaves enabled..."
 
-INSTANCE_ID=$(aws ec2 run-instances \
-  --region "$REGION" \
-  --image-id "$AMI_ID" \
-  --instance-type m5.xlarge \
-  --key-name "$KEY_PAIR" \
-  --user-data file://user-data.sh \
-  --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":200}}]' \
-  --enclave-options Enabled=true \
-  --security-group-ids "$SECURITY_GROUP_ID" \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${FINAL_INSTANCE_NAME}},{Key=instance-script,Value=true}]" \
-  --query "Instances[0].InstanceId" --output text)
+if [ -n "$INSTANCE_ID" ]; then
+  echo "使用指定的EC2实例: $INSTANCE_ID..."
 
-echo "Instance launched with ID: $INSTANCE_ID"
+  # 验证实例是否存在
+  INSTANCE_CHECK=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" 2>&1)
+  if [ $? -ne 0 ]; then
+    echo "错误: 指定的实例不存在或无法访问。"
+    echo "AWS CLI错误:"
+    echo "$INSTANCE_CHECK"
+    exit 1
+  fi
+  
+  # 检查该实例是否支持Nitro Enclaves
+  ENCLAVE_SUPPORT=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].EnclaveOptions.Enabled" --output text)
+  if [ "$ENCLAVE_SUPPORT" != "True" ] && [ "$ENCLAVE_SUPPORT" != "true" ]; then
+    echo "警告: 指定的实例可能不支持Nitro Enclaves功能。"
+    echo "请确保该实例已启用Nitro Enclaves并已安装必要的软件。"
+    read -p "是否继续使用此实例? (y/n): " CONTINUE_WITH_INSTANCE
+    if [[ ! "$CONTINUE_WITH_INSTANCE" =~ ^[Yy]$ ]]; then
+      echo "操作已取消。"
+      exit 1
+    fi
+  fi
 
-echo "Waiting for instance $INSTANCE_ID to run..."
-aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$REGION"
+  # 获取实例的标签
+  INSTANCE_NAME=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].Tags[?Key=='Name'].Value" --output text)
+  if [ -z "$INSTANCE_NAME" ]; then
+    INSTANCE_NAME="$FINAL_INSTANCE_NAME"
+    # 给实例添加标签
+    aws ec2 create-tags --resources "$INSTANCE_ID" --tags "Key=Name,Value=$INSTANCE_NAME" "Key=instance-script,Value=true" --region "$REGION"
+    echo "已为实例添加标签: $INSTANCE_NAME"
+  else
+    echo "使用现有实例名称: $INSTANCE_NAME"
+  fi
+  
+  # 获取实例的公共IP
+  PUBLIC_IP=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+  
+  echo "将继续使用现有实例 $INSTANCE_ID ($INSTANCE_NAME)"
+  
+  # 为现有实例创建一个设置脚本，用户可以在实例内部执行
+  echo "为现有实例创建setup_existing_instance.sh脚本..."
+  cat user-data.sh > setup_existing_instance.sh
+  chmod +x setup_existing_instance.sh
+  
+  echo "
+echo \"===== 设置完成 =====\"
+echo \"请按照以下步骤操作:\"
+echo \"1. 将此脚本复制到实例 $INSTANCE_ID 上\"
+echo \"2. 在实例上执行此脚本: sudo ./setup_existing_instance.sh\"
+echo \"3. 按照脚本中的说明配置Nitro Enclaves环境\"
+" >> setup_existing_instance.sh
+  
+  echo "已创建setup_existing_instance.sh脚本，您可以将其复制到实例上并执行。"
+  echo "命令示例: scp setup_existing_instance.sh ec2-user@$PUBLIC_IP:~/"
+  
+else
+  echo "Launching EC2 instance with Nitro Enclaves enabled..."
+
+  INSTANCE_ID=$(aws ec2 run-instances \
+    --region "$REGION" \
+    --image-id "$AMI_ID" \
+    --instance-type "$INSTANCE_TYPE" \
+    --key-name "$KEY_PAIR" \
+    --user-data file://user-data.sh \
+    --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":200}}]' \
+    --enclave-options Enabled=true \
+    --security-group-ids "$SECURITY_GROUP_ID" \
+    --subnet-id "$SUBNET_ID" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${FINAL_INSTANCE_NAME}},{Key=instance-script,Value=true}]" \
+    --query "Instances[0].InstanceId" --output text)
+
+  echo "Instance launched with ID: $INSTANCE_ID"
+
+  echo "Waiting for instance $INSTANCE_ID to run..."
+  aws ec2 wait instance-running --instance-ids "$INSTANCE_ID" --region "$REGION"
+  
+  # 获取实例的公共IP
+  PUBLIC_IP=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+fi
 
 # If an IAM role was created, associate its instance profile with the instance.
 if [ -n "$ROLE_NAME" ]; then
@@ -560,15 +783,31 @@ else
   sed -i "s/^ROLE_NAME=\".*\"/ROLE_NAME=\"$ROLE_NAME\"/" expose_enclave.sh
 fi
 
-PUBLIC_IP=$(aws ec2 describe-instances \
-  --instance-ids "$INSTANCE_ID" \
-  --region "$REGION" \
-  --query "Reservations[].Instances[].PublicIpAddress" \
-  --output text)
+# 确保获取公共IP地址（如果之前未获取）
+if [ -z "$PUBLIC_IP" ]; then
+  PUBLIC_IP=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+fi
 
 echo "[*] Commit the code generated in expose_enclave.sh and src/nautilus-server/run.sh. They will be needed when building the enclave inside the instance."
-echo "[*] Please wait 2-3 minutes for the instance to finish the init script before sshing into it."
-echo "[*] ssh inside the launched EC2 instance. e.g. \`ssh ec2-user@\"$PUBLIC_IP\"\` assuming the ssh-key is loaded into the agent."
+
+if [ -n "$INSTANCE_ID" ]; then
+  echo "[*] 您正在使用现有实例 $INSTANCE_ID"
+  echo "[*] 请确保该实例已正确配置Nitro Enclaves环境"
+  if [ -n "$PUBLIC_IP" ]; then
+    echo "[*] 实例公共IP: $PUBLIC_IP"
+    echo "[*] ssh连接示例: ssh ec2-user@\"$PUBLIC_IP\""
+  else
+    echo "[*] 未能获取实例公共IP，请在AWS控制台查看"
+  fi
+else
+  echo "[*] Please wait 2-3 minutes for the instance to finish the init script before sshing into it."
+  if [ -n "$PUBLIC_IP" ]; then
+    echo "[*] ssh inside the launched EC2 instance. e.g. \`ssh ec2-user@\"$PUBLIC_IP\"\` assuming the ssh-key is loaded into the agent."
+  else
+    echo "[*] ssh inside the launched EC2 instance. Check AWS console for the public IP address."
+  fi
+fi
+
 echo "[*] Clone or copy the repo with the above generated code."
 echo "[*] Inside repo directory: 'make' and then 'make run'"
 echo "[*] Run expose_enclave.sh from within the EC2 instance to expose the enclave to the internet."
