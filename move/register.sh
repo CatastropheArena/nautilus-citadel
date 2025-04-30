@@ -51,20 +51,20 @@ echo $ENCLAVE_URL
 # =======
 
 # this calls the update_pcrs onchain with the enclave cap and built PCRs, this can be reused to update PCRs if Rust server code is updated
-sui client call --function update_pcrs --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID 0x$PCR0 0x$PCR1 0x$PCR2
+# sui client call --function update_pcrs --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID 0x$PCR0 0x$PCR1 0x$PCR2
 
 # optional, give it a name you like
-sui client call --function update_name --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID "twitter enclave, updated 2025-04-29"
+# sui client call --function update_name --module enclave --package $ENCLAVE_PACKAGE_ID --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" --args $ENCLAVE_CONFIG_OBJECT_ID $CAP_OBJECT_ID "twitter enclave, updated 2025-04-29"
 
 # this script calls the get_attestation endpoint from your enclave url and use it to calls register_enclave onchain to register the public key, results in the created enclave object
-sh ../register_enclave.sh $ENCLAVE_PACKAGE_ID $EXAMPLES_PACKAGE_ID $ENCLAVE_CONFIG_OBJECT_ID $ENCLAVE_URL $MODULE_NAME $OTW_NAME
+# sh ../register_enclave.sh $ENCLAVE_PACKAGE_ID $EXAMPLES_PACKAGE_ID $ENCLAVE_CONFIG_OBJECT_ID $ENCLAVE_URL $MODULE_NAME $OTW_NAME
 
 # # record the created shared object ENCLAVE_OBJECT_ID as env var from register output
 ENCLAVE_OBJECT_ID=0x7bd92db51df9730c8887445d22109e3d200b0ba19bd92c461da77d0aad7b4e79
 
 
-# sui client call --function mint_nft --module twitter \
-# --args "luo_eurax" 1745918301276 "0x005c14d78096010000096c756f5f657572617820540ba39b0328acd14e100a8af76b7880e336abe08f806ada5643085794bd8aab" 0xeba18ee5924e82709fd03bad1298e38f879ede03954ed0db9ad88ec8628261c7 \
-# --package $EXAMPLES_PACKAGE_ID \
-# --type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" \
-# --gas-budget 100000000
+sui client call --function mint_nft --module twitter \
+--package $EXAMPLES_PACKAGE_ID \
+--type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" \
+--args "luo_eurax" 1745937093978 "44016c80cc30a04ec1e71377de74c186fbd82cf9c205c8c7ba945180c5703df11c793604f15e782c638fbbc47069def331d2da2d4acc1ddb05dcbccd06c5e20e" 0x7bd92db51df9730c8887445d22109e3d200b0ba19bd92c461da77d0aad7b4e79 \
+--gas-budget 100000000
