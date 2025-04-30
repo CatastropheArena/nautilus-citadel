@@ -13,7 +13,7 @@ import { useNetworkVariable } from "./networkConfig";
 import { fromBase64, toHex, fromHex } from "@mysten/sui/utils";
 import { bcs } from "@mysten/sui/bcs";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = import.meta.env.VITE_API_TARGET || "";
 
 const EnclaveConfigMove = bcs.struct("EnclaveConfig", {
   id: bcs.Address,
@@ -21,6 +21,12 @@ const EnclaveConfigMove = bcs.struct("EnclaveConfig", {
   pcr0: bcs.vector(bcs.u8()),
   pcr1: bcs.vector(bcs.u8()),
   pcr2: bcs.vector(bcs.u8()),
+});
+
+const EnclaveMove = bcs.struct("Enclave", {
+  id: bcs.Address,
+  pk: bcs.vector(bcs.u8()),
+  config_version: bcs.u64(),
 });
 
 function App() {
@@ -35,7 +41,10 @@ function App() {
   const [pcr0, setPcr0] = useState<string>("");
   const [pcr1, setPcr1] = useState<string>("");
   const [pcr2, setPcr2] = useState<string>("");
+  const [enclavePk, setEnclavePk] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState<any>(null);
+  const [apiHealthError, setApiHealthError] = useState<string | null>(null);
   const { mutate: signAndExecute } = useSignAndExecuteTransaction({
     execute: async ({ bytes, signature }) =>
       await suiClient.executeTransactionBlock({
@@ -47,6 +56,27 @@ function App() {
         },
       }),
   });
+
+  const fetchApiHealthCheck = async () => {
+    try {
+      if (!API_URL) {
+        setApiHealthError("API URL not set, cannot check health status");
+        return;
+      }
+      const res = await fetch("/health_check");
+      if (!res.ok) {
+        setApiHealthError(`Health check failed: ${res.statusText}`);
+        return;
+      }
+      
+      const healthData = await res.json();
+      setApiHealth(healthData);
+      setApiHealthError(null);
+    } catch (error) {
+      console.error("Error fetching API health:", error);
+      setApiHealthError(`API health check error: ${(error as Error).message}`);
+    }
+  };
 
   useEffect(() => {
     const fetchPCRs = async () => {
@@ -75,7 +105,33 @@ function App() {
       }
     };
 
+    const fetchEnclavePk = async () => {
+      try {
+        const res = await suiClient.getObject({
+          id: ENCLAVE_OBJ_ID,
+          options: {
+            showBcs: true,
+          },
+        });
+
+        if (!res || res.error || !res.data) {
+          throw new Error(`missing enclave object`);
+        }
+
+        if (!res.data.bcs || !("bcsBytes" in res.data.bcs)) {
+          throw new Error(`Invalid enclave object`);
+        }
+
+        const enclave = EnclaveMove.parse(fromBase64(res.data.bcs.bcsBytes));
+        setEnclavePk(toHex(new Uint8Array(enclave.pk)));
+      } catch (error) {
+        console.error("Error fetching Enclave PK:", error);
+      }
+    };
+
     fetchPCRs();
+    fetchEnclavePk();
+    fetchApiHealthCheck();
   }, []);
 
   const processUrlAndMint = async (twitterUrl: string) => {
@@ -83,7 +139,7 @@ function App() {
       console.log("processing url", twitterUrl);
       console.log("processing API_URL", API_URL);
 
-      const res = await fetch(`${API_URL}/process_data`, {
+      const res = await fetch(`/process_data`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -176,6 +232,47 @@ function App() {
           Mint Your Twitter Identity Onchain
         </h1>
       </Flex>
+      
+      {/* API URL information */}
+      <Card style={{ marginBottom: "2rem" }}>
+        <Flex direction="column" gap="2">
+          <h2 className="font-bold">current API URL:</h2>
+          <p>
+            <b>API URL:</b> {API_URL || "Not set"}
+          </p>
+        </Flex>
+      </Card>
+      
+      {/* API Health Check */}
+      <Card style={{ marginBottom: "2rem"}}>
+        <Flex direction="column" gap="2">
+          <h2 className="font-bold">API Health Check:</h2>
+          {apiHealthError ? (
+            <p style={{ color: "#ff6b6b" }}>{apiHealthError}</p>
+          ) : apiHealth ? (
+            <pre style={{ 
+              overflowX: "auto", 
+              padding: "12px", 
+              backgroundColor: "#222222", 
+              borderRadius: "4px",
+              fontSize: "14px",
+              color: "#ffffff"
+            }}>
+              {JSON.stringify(apiHealth, null, 2)}
+            </pre>
+          ) : (
+            <p>Loading...</p>
+          )}
+          <Button 
+            size="2" 
+            onClick={fetchApiHealthCheck}
+            style={{ alignSelf: "flex-start", marginTop: "8px", backgroundColor: "#333333", color: "#ffffff" }}
+          >
+            Refresh Health Status
+          </Button>
+        </Flex>
+      </Card>
+      
       <Card style={{ marginBottom: "2rem" }}>
         <p>
           1. Code is available{" "}
@@ -310,6 +407,20 @@ function App() {
             <br />
             <b>PCR2:</b> {pcr2}
           </p>
+          <br />
+          <h2>Enclave PK</h2>
+          <p>
+            <a
+              href={`https://testnet.suivision.xyz/object/${ENCLAVE_OBJ_ID}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {ENCLAVE_OBJ_ID}
+            </a>
+            <br />
+            <br />
+            <b>PK:</b> {enclavePk}
+          </p>
         </Card>
 
         <Card className="max-w-xs">
@@ -326,7 +437,7 @@ function App() {
             <br />
             <b>What if I tweeted someone else's address?</b> <br />
             <br />
-            You cannot mint your Twitter handle to someone else’s address. The
+            You cannot mint your Twitter handle to someone else's address. The
             transaction will fail because the sender does not match the address
             specified in the attestation.
             <br />

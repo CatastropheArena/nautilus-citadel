@@ -60,11 +60,31 @@ echo $ENCLAVE_URL
 # sh ../register_enclave.sh $ENCLAVE_PACKAGE_ID $EXAMPLES_PACKAGE_ID $ENCLAVE_CONFIG_OBJECT_ID $ENCLAVE_URL $MODULE_NAME $OTW_NAME
 
 # # record the created shared object ENCLAVE_OBJECT_ID as env var from register output
-ENCLAVE_OBJECT_ID=0x7bd92db51df9730c8887445d22109e3d200b0ba19bd92c461da77d0aad7b4e79
+ENCLAVE_OBJECT_ID=0x11817ace32e5899d97911b8aec14901ea716806d618674f5231ffdf81cf4274a
 
 
-sui client call --function mint_nft --module twitter \
---package $EXAMPLES_PACKAGE_ID \
---type-args "$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME" \
---args "luo_eurax" 1745937093978 "44016c80cc30a04ec1e71377de74c186fbd82cf9c205c8c7ba945180c5703df11c793604f15e782c638fbbc47069def331d2da2d4acc1ddb05dcbccd06c5e20e" 0x7bd92db51df9730c8887445d22109e3d200b0ba19bd92c461da77d0aad7b4e79 \
---gas-budget 100000000
+SIG=4053201a27c4b0eb0768788c9a06104cbc5a653b4767cb97fc9247f4e4dac63091f25d1d27b1ae90db230341c3e97f8441fe9b63ca605f41334a
+SIG_ARRAY=$(python3 - <<EOF
+import sys
+
+def hex_to_vector(hex_string):
+    byte_values = [str(int(hex_string[i:i+2], 16)) for i in range(0, len(hex_string), 2)]
+    rust_array = [f"{byte}" for byte in byte_values]
+    return f"[{','.join(rust_array)}]"
+
+print(hex_to_vector("$SIG"))
+EOF
+)
+echo 'converted attestation'
+
+
+# make sure all env vars are populated
+echo $EXAMPLES_PACKAGE_ID
+echo $MODULE_NAME
+echo $OTW_NAME
+echo $ENCLAVE_OBJECT_ID
+echo $SIG_ARRAY
+# Execute sui client command with the converted array and provided arguments
+sui client ptb  \
+    --move-call ${EXAMPLES_PACKAGE_ID}::${MODULE_NAME}::mint_nft "<$EXAMPLES_PACKAGE_ID::$MODULE_NAME::$OTW_NAME>" '"luo_eurax"' 1746019379444 "vector$SIG_ARRAY" @${ENCLAVE_OBJECT_ID} \
+    --gas-budget 100000000
